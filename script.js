@@ -9,7 +9,7 @@
 			y: canvas.height
 		};
 
-		this.bodies = [new Player(this, gameSize)];
+		this.bodies = createInvaders(this).concat([new Player(this, gameSize)]);
 
 		var self = this;
 		var tick = function(){
@@ -23,8 +23,23 @@
 
 	Game.prototype = {
 
-		update: function(){
-			// console.log("Hello");
+		update: function(gameSize){
+			//console.log(this.bodies.length);
+
+			var bodies = this.bodies;
+
+			var notCollidingWithAnithing = function(b1){
+				return bodies.filter(function(b2){
+					return colliding(b1, b2);
+				}).length == 0
+			}
+
+			this.bodies = this.bodies.filter(notCollidingWithAnithing);
+
+			for (var i = 0; i < this.bodies.length; i++) {
+				if (this.bodies[i].position.y < 0) {this.bodies.splice(i, 1);}
+			}
+
 			for (var i = 0; i < this.bodies.length; i++) {
 				this.bodies[i].update();
 			}
@@ -38,11 +53,45 @@
 		},
 		addBody: function(body){
 			this.bodies.push(body);
+		},
+
+		invadersBelow: function(invader){
+			return this.bodies.filter(function(b){
+				return b instanceof Invader &&
+				b.position.y > invader.position.y && 
+				b.position.x - invader.position.x < invader.size.width; 
+			}).length > 0;
+		}
+	}
+
+	var Invader = function(game, position){
+		this.game = game;
+		this.size = {width:16, height:16};
+		this.position = position;
+		this.patrolX = 0;
+		this.speedX = 3;
+	}
+
+	Invader.prototype = {
+		update: function (){
+			if(this.patrolX < 0 || this.patrolX > 500){
+				this.speedX = -this.speedX;
+			}
+			this.position.x += this.speedX;
+			this.patrolX += this.speedX;
+
+			if(Math.random() < 0.05 && !this.game.invadersBelow(this)){
+			var bullet = new Bullet({x: this.position.x + this.size.width/2 -3/2, y:this.position.y+this.size.height/2}, 
+				{x:Math.random()-0.5, y:2});
+				this.game.addBody(bullet);
+			}
 		}
 	}
 
 	var Player = function(game, gameSize){
 		this.game = game;
+		this.bullets = 8;
+		this.timer = 0;
 		this.size = {width:16, height:16};
 		this.position = {x: gameSize.x/2 - this.size.width/2, y: gameSize.y/2 - this.size.height/2};
 		this.keyboarder = new Keyboarder();
@@ -59,9 +108,14 @@
 				this.position.x +=5;
 			};
 			if(this.keyboarder.isDown(this.keyboarder.KEYS.SPACE)){
-				var bullet = new Bullet({x: this.position.x + this.size.width/2 -3/2, y:this.position.y}, {x:0, y:-6});
+				if(this.bullets < 5){
+				var bullet = new Bullet({x: this.position.x + this.size.width/2 -3/2, y:this.position.y-4}, {x:0, y:-6});
 				this.game.addBody(bullet);
-			}; 
+				this.bullets++;
+				}
+			}
+			this.timer++;
+			if (this.timer % 12 == 0) this.bullets = 0; 
 		}
 	}
 
@@ -94,6 +148,24 @@
 		}
 
 		this.KEYS = {LEFT: 37, RIGTH: 39, SPACE: 32};
+	}
+
+	var createInvaders = function(game){
+		var invaders = [];
+		for (var i = 0; i < 24; i++) {
+			var x = 30 + (i%8)*30;
+			var y = 30 + (i%3)*30;
+			invaders.push(new Invader(game, {x:x, y:y}));
+		}
+		return invaders;
+	}
+
+	var colliding = function(b1, b2){
+		return !(b1 == b2 ||
+			b1.position.x + b1.size.width/2 < b2.position.x - b2.size.width/2 ||
+			b1.position.y + b1.size.height/2 < b2.position.y - b2.size.height/2 ||
+			b1.position.x - b1.size.width/2 > b2.position.x + b2.size.width/2 ||
+			b1.position.y - b1.size.height/2 > b2.position.y + b2.size.height/2);
 	}
 
 	var drawRect = function(screen, body){
